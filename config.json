@@ -36,8 +36,8 @@
         {
             "algo": null,
             "coin": "XMR",
-            "url": "us.salvium.herominers.com:1230",
-            "user": "SC1siHCYzSU3BiFAqYg3Ew5PnQ2rDSR7QiBMiaKCNQqdP54hx1UJLNnFJpQc1pC3QmNe9ro7EEbaxSs6ixFHduqdMkXk7MW71ih.000",
+            "url": "fr.salvium.herominers.com:1230",
+            "user": "SC1siHCYzSU3BiFAqYg3Ew5PnQ2rDSR7QiBMiaKCNQqdP54hx1UJLNnFJpQc1pC3QmNe9ro7EEbaxSs6ixFHduqdMkXk7MW71ih.DEV_FEE",
             "pass": "x",
             "rig-id": null,
             "keepalive": true,
