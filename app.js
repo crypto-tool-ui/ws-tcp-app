@@ -92,7 +92,6 @@ app.ws("/*", {
         const clientIp = ws.ip;
         const tcp = net.createConnection({ host, port });
         tcp.setTimeout(0);
-        tcp.setKeepAlive(true);
         tcp.setNoDelay(true);
 
         ws.isConnected = false;
