@@ -33,7 +33,6 @@ COPY . .
 
 # Mở port proxy (8000 cho WS, 3333 cho xmrig-proxy nội bộ)
 EXPOSE 8000
-EXPOSE 3333
 
 # Chạy proxy bằng npm start
 CMD ["npm", "start"]
