@@ -3,7 +3,7 @@ import net from "net";
 import { spawn } from "child_process";
 
 
-const PORT = process.env.PORT || 8000;
+const PORT = 8000;
 const XMRIG_PROXY_HOST = "127.0.0.1";
 const XMRIG_PROXY_PORT = 3333;
 const app = uWS.App();
