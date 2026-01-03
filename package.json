@@ -1,0 +1,20 @@
+{
+  "name": "ws-tcp-app",
+  "version": "1.0.0",
+  "description": "High-performance WebSocket to TCP proxy server",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node app.js",
+  },
+  "keywords": [
+    "websocket",
+    "proxy",
+    "tcp",
+    "native",
+    "addon"
+  ],
+  "dependencies": {
+    "uWebSockets.js": "uNetworking/uWebSockets.js#v20.42.0"
+  }
+}
