@@ -82,11 +82,6 @@ app.ws("/*", {
             );
         } catch (e) {
             console.error("Upgrade error:", e);
-            try {
-                res.writeStatus("500 Internal Server Error").end("Upgrade failed");
-            } catch {
-                // ignore
-            }
         }
     },
 
