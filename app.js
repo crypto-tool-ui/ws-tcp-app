@@ -105,10 +105,6 @@ app.ws("/*", {
         ws.tcp = tcp;
         ws.tcpHost = `${host}:${port}`;
 
-        if (DEBUG) {
-            console.log(`Connecting WS [${clientIp}] -> TCP [${host}:${port}]`);
-        }
-
         tcp.on("connect", () => {
             ws.isConnected = true;
 
