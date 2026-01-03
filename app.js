@@ -127,9 +127,6 @@ app.ws("/*", {
         });
 
         tcp.on("close", () => {
-            if (DEBUG) {
-                console.log(`TCP closed [${host}:${port}] for WS [${clientIp}]`);
-            }
             safeEndWS(ws, 1000, "TCP closed");
         });
 
