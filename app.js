@@ -12,7 +12,7 @@ const MAX_QUEUE_SIZE = 100; // Giảm xuống, nếu queue quá lớn = có vấ
 const MAX_PAYLOAD_LENGTH = 1024 * 1024; // 1MB
 const IDLE_TIMEOUT_SECONDS = 300; // 5 phút
 const TCP_CONNECT_TIMEOUT = 10000; // 10 giây timeout cho TCP connect
-const DEBUG = true;
+const DEBUG = false;
 
 function normalizeLine(msg) {
   const text = typeof msg === "string" ? msg : String(msg);
