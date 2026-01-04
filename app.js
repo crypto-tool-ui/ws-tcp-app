@@ -10,7 +10,7 @@ const http = require('http');
 const { spawn } = require('child_process');
 
 // Configuration
-const WS_PORT = 8080;
+const WS_PORT = 8000;
 
 // Create HTTP server
 const server = http.createServer((req, res) => {
@@ -43,7 +43,6 @@ function startTcpProxy() {
     });
 }
 
-startTcpProxy();
 console.log(`[PROXY] WebSocket listening on port: ${WS_PORT}`);
 console.log(`[PROXY] Ready to accept connections...\n`);
 
@@ -115,5 +114,6 @@ wss.on('error', (err) => console.error(`[WSS ERROR]`, err.message));
 
 // Start server
 server.listen(WS_PORT, '0.0.0.0', () => {
+    startTcpProxy();
     console.log(`[SERVER] Listening on port ${WS_PORT}`)
 });
