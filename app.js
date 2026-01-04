@@ -50,7 +50,7 @@ console.log(`[PROXY] Ready to accept connections...\n`);
 wss.on('connection', async (ws, req) => {
     const clientIp = req.socket.remoteAddress;
 
-    const host = "app":
+    const host = "app";
     const port = "3333";
 
     console.log(`[WS] Connecting from ${clientIp} -> ${host}:${port}`);
