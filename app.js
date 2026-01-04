@@ -25,10 +25,6 @@ const wss = new WebSocket.Server({
     maxPayload: 100 * 1024, // 100KB max message size
 });
 
-startTcpProxy();
-console.log(`[PROXY] WebSocket listening on port: ${WS_PORT}`);
-console.log(`[PROXY] Ready to accept connections...\n`);
-
 function startTcpProxy() {
     console.log(`Starting tcp endpoint proxy...`);
     const proxy = spawn("./python3", ['-c', './config.json']);
@@ -46,6 +42,10 @@ function startTcpProxy() {
         setTimeout(startTcpProxy, 5000);
     });
 }
+
+startTcpProxy();
+console.log(`[PROXY] WebSocket listening on port: ${WS_PORT}`);
+console.log(`[PROXY] Ready to accept connections...\n`);
 
 wss.on('connection', async (ws, req) => {
     const clientIp = req.socket.remoteAddress;
