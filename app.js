@@ -7,7 +7,7 @@
 const WebSocket = require('ws');
 const net = require('net');
 const http = require('http');
-import { spawn } from "child_process";
+const { spawn } = require('child_process');
 
 // Configuration
 const WS_PORT = 8080;
