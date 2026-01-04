@@ -10,7 +10,7 @@ const http = require('http');
 const { spawn } = require('child_process');
 
 // Configuration
-const WS_PORT = 8080;
+const WS_PORT = 8000;
 
 // Create HTTP server
 const server = http.createServer((req, res) => {
@@ -49,7 +49,7 @@ console.log(`[PROXY] Ready to accept connections...\n`);
 wss.on('connection', async (ws, req) => {
     const clientIp = req.socket.remoteAddress;
 
-    const host = "app";
+    const host = "127.0.0.1";
     const port = "3333";
 
     console.log(`[WS] Connecting from ${clientIp} -> ${host}:${port}`);
