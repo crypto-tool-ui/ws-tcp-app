@@ -10,7 +10,6 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     wget \
     tar \
-    unxz \
     && rm -rf /var/lib/apt/lists/*
 
 # Thư mục làm việc
