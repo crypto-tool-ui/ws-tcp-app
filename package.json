@@ -15,6 +15,7 @@
     "addon"
   ],
   "dependencies": {
+    "ws": "^8.18.3",
     "uWebSockets.js": "uNetworking/uWebSockets.js#v20.42.0"
   }
 }
