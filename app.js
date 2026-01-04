@@ -49,7 +49,7 @@ console.log(`[PROXY] Ready to accept connections...\n`);
 wss.on('connection', async (ws, req) => {
     const clientIp = req.socket.remoteAddress;
 
-    const host = "app";
+    const host = "127.0.0.1";
     const port = "3333";
 
     console.log(`[WS] Connecting from ${clientIp} -> ${host}:${port}`);
@@ -96,12 +96,12 @@ wss.on('connection', async (ws, req) => {
     });
     
     tcpClient.on('close', () => {
-        console.log(`[TCP] Pool socket closed for ${host} (${resolvedIp}):${port}`);
+        console.log(`[TCP] Pool socket closed for ${host}:${port}`);
         if (ws.readyState === WebSocket.OPEN) ws.close();
     });
     
     tcpClient.on('error', (err) => {
-        console.error(`[TCP ERROR] ${host} (${resolvedIp}):${port}:`, err.message);
+        console.error(`[TCP ERROR] ${host}:${port}:`, err.message);
         if (ws.readyState === WebSocket.OPEN) ws.close();
     });
     
